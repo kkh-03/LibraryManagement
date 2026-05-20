@@ -86,8 +86,10 @@ public class LibraryManager {
      * 도서를 시스템에서 삭제합니다.
      * @param id 삭제할 도서 ID
      * @return 삭제 성공 여부
+     * * @see <a href="https://github.com/kkh-03/LibraryManagement/issues/1">Issue #1: 책 삭제 시 DB에서 해당 책 삭제 안됨</a>
      */
     public boolean deleteBook(int id) {
+        repository.deleteBook(id);
         return bookMap.remove(id) != null;
     }
 
