@@ -1,6 +1,8 @@
 import java.util.*;
+import java.net.InetAddress;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+
 
 public class LibraryManager {
     private Map<Integer, Book> bookMap;
@@ -171,19 +173,29 @@ public class LibraryManager {
 
     public void checkServerStatus(String ip) {
         try {
-            // [수정] cmd.exe /c 를 앞에 붙여서 쉘이 명령어를 해석하게 만듭니다.
-            String command = "cmd.exe /c ping -n 1 " + ip;
+            // 입력값의 앞뒤 불필요한 공백 제거
+            String trimmedIp = ip.trim();
+            System.out.println("\n[시스템] 서버 상태 점검 시도 (안전한 표준 API 사용): " + trimmedIp);
 
-            System.out.println("[시스템 실행 명령어]: " + command);
+            // 🛡️ 자바 표준 API를 통해 IP 또는 도메인 주소 객체 생성
+            // 악성 문자열이 들어와도 명령어 분리자(&&, ;, |)가 실행되지 않고, 단순 주소 형식 오류로 안전하게 예외 처리됨
+            InetAddress address = InetAddress.getByName(trimmedIp);
 
-            Process process = Runtime.getRuntime().exec(command);
-            // 한글 깨짐 방지를 위해 EUC-KR 유지
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), "EUC-KR"));
+            // 3000ms(3초) 동안 ICMP Ping(또는 TCP 7번 포트)을 보내 도달 가능 여부 확인
+            boolean isReachable = address.isReachable(3000);
 
-            String line;
-            while ((line = reader.readLine()) != null) {
-                System.out.println(line);
+            System.out.println("-----------------------------------------------------------");
+            if (isReachable) {
+                System.out.println("[결과] Reply from " + trimmedIp + ": 응답이 존재합니다.");
+                System.out.println("[결과] 서버 네트워크가 원활하게 연결되어 있습니다.");
+            } else {
+                System.out.println("[결과] Request timed out: " + trimmedIp + " 서버에 연결할 수 없습니다.");
+                System.out.println("[결과] 방화벽 정책을 확인하거나 IP 주소가 올바른지 확인하세요.");
             }
+            System.out.println("-----------------------------------------------------------");
+
+        } catch (java.net.UnknownHostException e) {
+            System.out.println("[오류] 유효하지 않거나 호스트를 찾을 수 없는 IP 주소입니다: " + e.getMessage());
         } catch (Exception e) {
             System.out.println("[오류] 진단 중 예외 발생: " + e.getMessage());
         }
