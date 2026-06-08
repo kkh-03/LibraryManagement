@@ -12,8 +12,8 @@ public class LibraryRepository {
      * MariaDB 연결을 위한 전용 메소드입니다.
      * <p>JDBC 드라이버를 로드하고 설정된 정보를 바탕으로 {@link Connection} 객체를 생성합니다.</p>
      * * @return 데이터베이스 연결 객체
-     * @throws SQLException 드라이버 로드 실패 또는 연결 정보가 부적절할 경우 발생
      *
+     * @throws SQLException 드라이버 로드 실패 또는 연결 정보가 부적절할 경우 발생
      * @see <a href="https://mariadb.com/kb/en/about-mariadb-connector-j/">MariaDB Connector/J Documentation</a>
      */
     private Connection getConnection() throws SQLException {
@@ -76,7 +76,6 @@ public class LibraryRepository {
      *
      * @param bookId 삭제할 도서의 고유 ID
      * @return 삭제 성공 여부
-     *
      * @see <a href="https://github.com/sumannam/Java/issues/44">Issue #44: Admin 계정에서 책 데이터를 삭제</a>
      */
     public boolean deleteBook(int bookId) {
@@ -109,6 +108,7 @@ public class LibraryRepository {
     /**
      * 데이터베이스로부터 모든 도서 정보를 조회하여 메모리에 로드합니다.
      * * @return 도서 ID를 키로 하는 도서 정보 맵
+     *
      * @see <a href="https://github.com/sumannam/Java/issues/23">Issue #23: 초기 구동 시 DB 데이터 로딩</a>
      */
     public Map<Integer, Book> loadBooks() {
@@ -136,28 +136,29 @@ public class LibraryRepository {
 
     /**
      * 사용자 로그인을 위한 정보를 조회합니다.
-     * <p><b>보안 실습 주의:</b> 현재 이 메소드는 SQL Injection 공격에 취약하도록 의도적으로 설계되었습니다.</p>
-     * <p>입력값이 쿼리문에 직접 결합되는 방식의 위험성을 교육하기 위한 용도로만 사용하십시오.</p>
-     * * @param id 사용자 아이디
-     * @param pw 사용자 비밀번호
-     * @return 인증된 {@link User} 객체 (일치 정보 없을 시 null)
+     * [보안 패치] PreparedStatement의 파라미터 바인딩(? 위치 홀더)을 사용하여
+     * SQL Injection 공격을 원천 차단(Remediation)했습니다.
      *
-     * @see <a href="https://github.com/sumannam/Java/issues/40">Issue #40: SQL Injection 취약점 개발</a>
+     * @param id 사용자 아이디
+     * @param pw 사용자 비밀번호
+     * @return 인증된 User 객체 (일치 정보 없을 시 null)
      */
     public User loadUser(String id, String pw) {
-        //String sql = "SELECT * FROM users WHERE user_id = ? AND password = ?";
-        String sql = "SELECT * FROM users WHERE user_id = '" + id + "' AND password = '" + pw + "'";
-        //System.out.println(sql);
+        // 🛡️ 1. 가변적인 입력값이 들어갈 자리에 '?'(위치 홀더)를 사용한 안전한 쿼리 생성
+        String sql = "SELECT * FROM users WHERE user_id = ? AND password = ?";
 
+        // 🛡️ 2. try-with-resources 구문을 통해 Connection과 PreparedStatement를 생성
         try (Connection conn = getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
+            // 🛡️ 3. pstmt.setString()을 통해 사용자 입력값을 안전하게 바인딩합니다.
+            // 이렇게 하면 사용자가 악성 SQL 구문을 입력해도 단순 '문자열 데이터'로만 취급됩니다.
             pstmt.setString(1, id);
             pstmt.setString(2, pw);
 
+            // 🛡️ 4. 파라미터가 채워진 쿼리를 실행합니다. (pstmt.executeQuery()에는 sql 변수를 넣지 않습니다)
             try (ResultSet rs = pstmt.executeQuery()) {
                 if (rs.next()) {
-                    // 반환 타입이 User로 바뀌었으므로 이제 에러 없이 정상 작동합니다.
                     return new User(
                             rs.getString("user_id"),
                             rs.getString("password"),
@@ -166,7 +167,8 @@ public class LibraryRepository {
                 }
             }
         } catch (SQLException e) {
-            System.err.println("[오류] 로그인 조회 실패: " + e.getMessage());
+            // 보안상 에러 메시지(e.getMessage())를 외부에 노출하지 않고 로그만 출력
+            System.err.println("[오류] 로그인 조회 중 데이터베이스 예외가 발생했습니다.");
         }
         return null; // 일치하는 사용자가 없을 때
     }
